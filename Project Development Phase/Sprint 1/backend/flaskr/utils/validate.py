@@ -26,6 +26,7 @@ def validate_login(user_data):
     if(not (get_user)):
         return { "error": ({'message': 'User Does not Exist'}, 404) }
     
+    get_user = get_user[0]
     if(not (general.compare_hash(user_data["password"], get_user["PASSWORD_HASH"]))):
         return { "error": ({"message": "Username or Password Incorrect"}, 404) }
     print(get_user)
@@ -34,3 +35,21 @@ def validate_login(user_data):
         return {"error": ({"message": "Please verify the E-Mail to Login", "next_resend": get_user["NEXT_RESEND"]}, 401)}
 
     return {"user" : get_user}
+
+def validate_add_income(user_data):
+    if(user_data["amount"] == "" and user_data["timestamp"] == ""):
+        return { "error": ({'message': 'Please fill the Required data'}, 400) }
+    
+    return False
+ 
+def validate_split_income(user_data, type):
+    if((type == "insert" and user_data["amount"] == "" and user_data["label"] == "") or (type == "update" and user_data["amount"] == "")):
+        return { "error": ({'message': 'Please fill the Required data'}, 400) }
+    
+    return False
+
+def validate_add_expense(user_data):
+    if(user_data["amount"] == "" and user_data["type"] == "" and user_data["category"] == ""):
+        return { "error": ({'message': 'Please fill the Required data'}, 400) }
+    
+    return False
