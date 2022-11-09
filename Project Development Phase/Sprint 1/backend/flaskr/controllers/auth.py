@@ -1,5 +1,4 @@
 from datetime import datetime
-from lib2to3.pgen2 import token
 from flask import request, after_this_request
 from flask_restful import Resource
 from ..utils import validate, general, db
@@ -25,9 +24,9 @@ class EmailVerification(Resource):
     def get(post):
         email = request.args.get('email')
         user = db.run_sql_select("SELECT EMAIL, VERIFIED, NEXT_RESEND FROM USER WHERE EMAIL = ?", (email,))
-        print(user)
-        if(user["NEXT_RESEND"] > int(datetime.now().timestamp() * 1000)):
-            return {"message": "Please wait", "next_resend": user["NEXT_RESEND"]}, 400
+        print(user[0])
+        if(user[0]["NEXT_RESEND"] > int(datetime.now().timestamp() * 1000)):
+            return {"message": "Please wait", "next_resend": user[0]["NEXT_RESEND"]}, 400
 
         sql_query = "UPDATE user SET next_resend=? WHERE email=?";
         next_time = general.generate_timestamp(2, False)
@@ -46,7 +45,7 @@ class EmailVerification(Resource):
         user = db.run_sql_select("SELECT ID, EMAIL, VERIFIED FROM USER WHERE EMAIL = ?", (email,))
         if(not user):
             return {"message": "No user exist with the mail ID"}, 404
-        if(user["VERIFIED"]):
+        if(user[0]["VERIFIED"]):
             return {"message": "Already Verirfied"}, 400
 
         sql_query = "UPDATE user SET verified=? WHERE email=?";
@@ -54,8 +53,9 @@ class EmailVerification(Resource):
         db.run_sql_update(sql_query, params=params)
 
         jwt_data = {
-            "id": user["ID"],
-            "email": email
+            "id": user[0]["ID"],
+            "email": email,
+            "timestamp": 0
         }
         token = general.create_jwt_token(jwt_data)
 
@@ -70,7 +70,13 @@ class Login(Resource):
     @token_required
     def get(payload, self):
         print(payload)
-        return {"message": "User Logged In", "email": payload['email']}, 200
+        sql_query_user = "SELECT total_amount, timestamp FROM user WHERE id=?"
+        sql_query_split = "SELECT label, sum(amount) as amount FROM split_income WHERE user_id=? GROUP BY label"
+        # sql_query = "select si.id, total_amount, amount, label, timestamp from user as u left join split_income as si on u.id = si.user_id where u.id=?"
+        params = (payload["id"],)
+        user_data = db.run_sql_select(sql_query_user, params)
+        split_data = db.run_sql_select(sql_query_split, params)
+        return {"message": "User Logged In", "user_data": user_data[0], "split_data":split_data, "email": payload['email']}, 200
 
     def post(self):   
         validate_result = validate.validate_login(user_data=request.json)
@@ -80,8 +86,11 @@ class Login(Resource):
         
         user = validate_result["user"]
         jwt_data = {
-            "email": user["EMAIL"]
+            "id": user["ID"],
+            "email": user["EMAIL"],
+            "timestamp": user["TIMESTAMP"]
         }
+        print(jwt_data)
         token = general.create_jwt_token(jwt_data)
         @after_this_request
         def set_cookie(response):
